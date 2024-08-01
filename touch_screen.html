@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geometry Dash & Flappy Bird Mix</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #87CEEB; }
+        canvas { display: block; background: #87CEEB; }
+
+        /* Animation for changing background colors */
+        @keyframes changeColors {
+            0% { background-color: #87CEEB; }
+            25% { background-color: #FF6347; }
+            50% { background-color: #32CD32; }
+            75% { background-color: #FFD700; }
+            100% { background-color: #87CEEB; }
+        }
+        .change-colors {
+            animation: changeColors 15s linear infinite;
+        }
+
+        /* Flashing text animation */
+        @keyframes flashingText {
+            0% { opacity: 1; }
+            50% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+
+        .flashing-text {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            font-size: 16px;
+            font-family: 'Arial', sans-serif;
+            color: black;
+            animation: flashingText 1s infinite;
+        }
+
+        /* Wobble animation */
+        @keyframes wobble {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-5deg); }
+            75% { transform: rotate(5deg); }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" class="change-colors"></canvas>
+    <div class="flashing-text">Copyright © 2024 Abhiraj Singh. All rights reserved.</div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas size
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Game variables
+        const GRAVITY = 0.75;
+        const JUMP_STRENGTH = -15;
+        const OBSTACLE_WIDTH = 40;
+        const OBSTACLE_HEIGHT = 100;
+        const OBSTACLE_SPACING = 400;
+        const OBSTACLE_ROTATION_SPEED = 0.02;
+        const MOVEMENT_SPEED = 30;
+        const BOUNDARY_HEIGHT = 50;
+
+        let player = { x: 50, y: canvas.height / 2, width: 30, height: 30, velocityY: 0, isJumping: false };
+        let obstacles = [];
+        let topBoundary = { x: 0, y: 0, width: canvas.width, height: BOUNDARY_HEIGHT };
+        let bottomBoundary = { x: 0, y: canvas.height - BOUNDARY_HEIGHT, width: canvas.width, height: BOUNDARY_HEIGHT };
+        let score = 0;
+        let bestScore = localStorage.getItem('bestScore') || 0;
+        let isGameOver = false;
+
+        function createObstacle() {
+            const height = Math.random() * (canvas.height - OBSTACLE_HEIGHT - BOUNDARY_HEIGHT * 2) + BOUNDARY_HEIGHT;
+            obstacles.push({ x: canvas.width, y: height, width: OBSTACLE_WIDTH, height: OBSTACLE_HEIGHT, rotation: Math.random() * 0.4 - 0.2 });
+        }
+
+        function resetGame() {
+            player.y = canvas.height / 2;
+            player.velocityY = 0;
+            player.isJumping = false;
+            obstacles = [];
+            score = 0;
+            isGameOver = false;
+            topBoundary.y = 0;
+            bottomBoundary.y = canvas.height - BOUNDARY_HEIGHT;
+        }
+
+        function getColorForScore(score) {
+            const hue = (score * 30) % 360;
+            return `hsl(${hue}, 70%, 50%)`;
+        }
+
+        function update() {
+            if (isGameOver) return;
+
+            // Gravity effect
+            player.velocityY += GRAVITY;
+            player.y += player.velocityY;
+
+            // Check collision with top and bottom boundaries
+            if (player.y < topBoundary.y + topBoundary.height || player.y + player.height > bottomBoundary.y) {
+                isGameOver = true;
+                if (score > bestScore) {
+                    bestScore = score;
+                    localStorage.setItem('bestScore', bestScore);
+                }
+                setTimeout(resetGame, 500);
+                return;
+            }
+
+            // Move and rotate obstacles
+            obstacles = obstacles.map(obstacle => {
+                obstacle.x -= MOVEMENT_SPEED;
+                obstacle.rotation += OBSTACLE_ROTATION_SPEED;
+                return obstacle;
+            }).filter(obstacle => {
+                if (obstacle.x + OBSTACLE_WIDTH >= 0) return true;
+                score++;
+                return false;
+            });
+
+            // Add new obstacles
+            if (obstacles.length === 0 || obstacles[obstacles.length - 1].x < canvas.width - OBSTACLE_SPACING) createObstacle();
+
+            // Check collisions
+            for (const obstacle of obstacles) {
+                if (
+                    player.x < obstacle.x + obstacle.width &&
+                    player.x + player.width > obstacle.x &&
+                    player.y < obstacle.y + obstacle.height &&
+                    player.y + player.height > obstacle.y
+                ) {
+                    isGameOver = true;
+                    if (score > bestScore) {
+                        bestScore = score;
+                        localStorage.setItem('bestScore', bestScore);
+                    }
+                    setTimeout(resetGame, 500);
+                    return;
+                }
+            }
+
+            // Draw everything
+            draw();
+        }
+
+        function draw() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw player with dynamic color and wobble effect
+            ctx.fillStyle = getColorForScore(score);
+            ctx.save();
+            ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
+            ctx.scale(1.05, 1.05);
+            ctx.rotate(Math.sin(Date.now() / 100) * 0.1);
+            ctx.fillRect(-player.width / 2, -player.height / 2, player.width, player.height);
+            ctx.restore();
+
+            // Draw obstacles with wobble effect
+            ctx.fillStyle = 'black';
+            for (const obstacle of obstacles) {
+                ctx.save();
+                ctx.translate(obstacle.x + obstacle.width / 2, obstacle.y + obstacle.height / 2);
+                ctx.rotate(obstacle.rotation);
+                ctx.rotate(Math.sin(Date.now() / 100) * 0.1);
+                ctx.fillRect(-obstacle.width / 2, -obstacle.height / 2, obstacle.width, obstacle.height);
+                ctx.restore();
+            }
+
+            // Draw boundaries with gradient effect
+            const gradientTop = ctx.createLinearGradient(0, topBoundary.y, 0, topBoundary.y + topBoundary.height);
+            gradientTop.addColorStop(0, 'rgba(0, 0, 0, 0.4)');
+            gradientTop.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = gradientTop;
+            ctx.fillRect(topBoundary.x, topBoundary.y, topBoundary.width, topBoundary.height);
+
+            const gradientBottom = ctx.createLinearGradient(0, bottomBoundary.y, 0, bottomBoundary.y + bottomBoundary.height);
+            gradientBottom.addColorStop(0, 'rgba(0, 0, 0, 0)');
+            gradientBottom.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
+            ctx.fillStyle = gradientBottom;
+            ctx.fillRect(bottomBoundary.x, bottomBoundary.y, bottomBoundary.width, bottomBoundary.height);
+
+            // Draw score
+            ctx.fillStyle = 'black';
+            ctx.font = '24px Arial';
+            ctx.fillText('Score: ' + score, 20, 30);
+            ctx.fillText('Best Score: ' + bestScore, 20, 60);
+        }
+
+        function jump() {
+            if (!isGameOver) player.velocityY = JUMP_STRENGTH;
+        }
+
+        // Touch event for jumping
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            jump();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') jump();
+        });
+
+        function gameLoop() {
+            update();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
